@@ -155,45 +155,28 @@ async function loadProjects() {
 
 // 导航
 function navigate(key: string) {
-  if (key === 'dashboard' || key === 'projects' || key === 'history') {
-    router.push(key === 'history' ? '/history' : `/${key}`)
-    return
+  const globalRoutes: Record<string, string> = {
+    dashboard: '/dashboard',
+    projects: '/projects',
+    cases: '/cases',
+    environments: '/environments',
+    scenarios: '/scenarios',
+    history: '/history',
+    reports: '/reports',
+    trends: '/trends'
   }
 
-  const projectId =
-    selectedProjectId.value ||
-    Number(localStorage.getItem('autotest_selected_project'))
-
-  if (!projectId) {
-    Message.warning('请先进入一个项目')
-    router.push('/projects')
+  const target = globalRoutes[key]
+  if (target) {
+    router.push(target)
     return
   }
-
-  const projectExists = projects.value.some(
-    project => project.id === projectId
-  )
-
-  if (!projectExists) {
-    Message.warning('请先选择有效项目')
-    router.push('/projects')
-    return
-  }
-
-  localStorage.setItem('autotest_selected_project', String(projectId))
-  router.push(`/workspace/${projectId}/${key}`)
 }
 
 // 从工作台或项目管理进入项目
 function openProject(project: Project, module: string) {
   localStorage.setItem('autotest_selected_project', String(project.id))
-
-  if (module === 'history') {
-    router.push('/history')
-    return
-  }
-
-  router.push(`/workspace/${project.id}/${module}`)
+  navigate(module)
 }
 
 // 返回工作台
