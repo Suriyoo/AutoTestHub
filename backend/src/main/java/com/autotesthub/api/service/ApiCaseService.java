@@ -84,13 +84,20 @@ public class ApiCaseService {
 
     // 查询项目下的用例列表
     public List<ApiCase> list(Long projectId, Long userId) {
-        checkProjectOwner(projectId, userId);
-
-        return apiCaseMapper.selectList(
-                new QueryWrapper<ApiCase>()
-                        .eq("project_id", projectId)
-                        .orderByDesc("updated_at")
-        );
+        QueryWrapper<ApiCase> wrapper = new QueryWrapper<>();
+        if (projectId != null) {
+            checkProjectOwner(projectId, userId);
+            wrapper.eq("project_id", projectId);
+        } else {
+            List<Long> ownedProjectIds = projectMapper.selectList(
+                    new QueryWrapper<Project>().eq("owner_id", userId)
+            ).stream().map(Project::getId).toList();
+            if (ownedProjectIds.isEmpty()) {
+                return List.of();
+            }
+            wrapper.in("project_id", ownedProjectIds);
+        }
+        return apiCaseMapper.selectList(wrapper.orderByDesc("updated_at"));
     }
 
     // 查询用例详情
