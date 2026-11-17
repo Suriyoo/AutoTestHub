@@ -26,76 +26,46 @@ const router = createRouter({
       }
     },
     {
-      path: '/workspace/:projectId/cases',
+      path: '/cases',
       name: 'cases',
       component: () => import('../views/ApiCaseManagement.vue'),
-      props: route => ({
-        projectId: Number(route.params.projectId)
-      }),
-      meta: {
-        title: 'API 用例管理',
-        menu: 'cases'
-      }
+      meta: { title: 'API 用例管理', menu: 'cases' }
     },
     {
-      path: '/workspace/:projectId/environments',
+      path: '/environments',
       name: 'environments',
       component: () => import('../views/EnvironmentManagement.vue'),
-      props: route => ({
-        projectId: Number(route.params.projectId)
-      }),
-      meta: {
-        title: '测试环境管理',
-        menu: 'environments'
-      }
+      meta: { title: '测试环境管理', menu: 'environments' }
     },
     {
-      path: '/workspace/:projectId/scenarios',
+      path: '/scenarios',
       name: 'scenarios',
       component: () => import('../views/ScenarioManagement.vue'),
-      props: route => ({
-        projectId: Number(route.params.projectId)
-      }),
-      meta: {
-        title: '测试场景管理',
-        menu: 'scenarios'
-      }
+      meta: { title: '测试场景管理', menu: 'scenarios' }
     },
     {
       path: '/history',
       name: 'history',
       component: () => import('../views/ExecutionHistory.vue'),
-      meta: {
-        title: '执行历史',
-        menu: 'history'
-      }
+      meta: { title: '执行历史', menu: 'history' }
     },
     {
-      path: '/workspace/:projectId/history',
-      redirect: '/history'
-    },
-    {
-      path: '/workspace/:projectId/reports',
+      path: '/reports',
       name: 'reports',
       component: () => import('../views/TestReport.vue'),
-      props: route => ({
-        projectId: Number(route.params.projectId)
-      }),
-      meta: {
-        title: '测试报告',
-        menu: 'reports'
-      }
+      meta: { title: '测试报告', menu: 'reports' }
     },
     {
-      path: '/workspace/:projectId/trends',
+      path: '/trends',
       name: 'trends',
       component: () => import('../views/TestTrend.vue'),
-      props: route => ({
-        projectId: Number(route.params.projectId)
-      }),
-      meta: {
-        title: '趋势分析',
-        menu: 'trends'
+      meta: { title: '趋势分析', menu: 'trends' }
+    },
+    {
+      path: '/workspace/:projectId/:module(cases|environments|scenarios|history|reports|trends)',
+      redirect: to => {
+        const module = String(to.params.module)
+        return module === 'history' ? '/history' : `/${module}`
       }
     },
     {
