@@ -49,7 +49,7 @@ public class TestScenarioController {
     // 查询场景列表
     @GetMapping
     public ApiResponse<List<TestScenario>> list(
-            @RequestParam Long projectId,
+            @RequestParam(required = false) Long projectId,
             HttpServletRequest request
     ) {
         return ApiResponse.ok(
