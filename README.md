@@ -1,6 +1,6 @@
 # AutoTest Hub
 
-自动化测试平台学习项目。当前为 Day 1 初始化骨架。
+自动化测试平台项目
 
 ## 技术栈
 - Backend: Java 21 / Spring Boot 3 / MyBatis-Plus / Maven
