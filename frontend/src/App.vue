@@ -1,4 +1,3 @@
-
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -156,8 +155,8 @@ async function loadProjects() {
 
 // 导航
 function navigate(key: string) {
-  if (key === 'dashboard' || key === 'projects') {
-    router.push(`/${key}`)
+  if (key === 'dashboard' || key === 'projects' || key === 'history') {
+    router.push(key === 'history' ? '/history' : `/${key}`)
     return
   }
 
@@ -188,6 +187,12 @@ function navigate(key: string) {
 // 从工作台或项目管理进入项目
 function openProject(project: Project, module: string) {
   localStorage.setItem('autotest_selected_project', String(project.id))
+
+  if (module === 'history') {
+    router.push('/history')
+    return
+  }
+
   router.push(`/workspace/${project.id}/${module}`)
 }
 
