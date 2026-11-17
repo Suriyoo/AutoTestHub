@@ -36,9 +36,9 @@ interface ApiResponse<T> {
 }
 
 // 查询项目下的 API 用例
-export async function getApiCases(projectId: number) {
+export async function getApiCases(projectId?: number) {
   return http.get<ApiResponse<ApiCase[]>>('/cases', {
-    params: { projectId }
+    params: projectId ? { projectId } : {}
   })
 }
 
