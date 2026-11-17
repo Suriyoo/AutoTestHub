@@ -111,9 +111,9 @@ interface ApiResponse<T> {
 }
 
 // 查询项目下的场景列表
-export function getScenarios(projectId: number) {
+export function getScenarios(projectId?: number) {
   return http.get<ApiResponse<TestScenario[]>>('/scenarios', {
-    params: { projectId }
+    params: projectId ? { projectId } : {}
   })
 }
 
