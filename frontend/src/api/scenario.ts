@@ -226,14 +226,15 @@ export interface ProjectScenarioExecutionReport {
   execution: ScenarioExecution
   scenarioName: string
   environmentName: string
+  projectName?: string
 }
 
 /**
  * 查询项目下所有场景执行报告
  */
-export function getProjectScenarioExecutionReports(projectId: number) {
+export function getProjectScenarioExecutionReports(projectId?: number) {
   return http.get<ApiResponse<ProjectScenarioExecutionReport[]>>(
-    `/projects/${projectId}/scenario-executions`
+    projectId ? `/projects/${projectId}/scenario-executions` : '/projects/scenario-executions'
   )
 }
 
@@ -258,12 +259,12 @@ export interface ScenarioExecutionTrend {
 }
 
 export function getProjectScenarioExecutionTrends(
-  projectId: number,
+  projectId: number | undefined,
   startDate: string,
   endDate: string
 ) {
   return http.get<ApiResponse<ScenarioExecutionTrend>>(
-    `/projects/${projectId}/scenario-execution-trends`,
+    projectId ? `/projects/${projectId}/scenario-execution-trends` : '/projects/scenario-execution-trends',
     {
       params: {
         startDate,
