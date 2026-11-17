@@ -1,6 +1,7 @@
 
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
+import type { Project } from '../api/project'
 import { Message, Modal } from '@arco-design/web-vue'
 
 import {
@@ -38,13 +39,18 @@ import {
 } from '../api/executionRecord'
 
 const props = defineProps<{
-  projectId: number
+  projectId?: number
+  projects?: Project[]
 }>()
 
 // ==================== 基础数据 ====================
 
 const loading = ref(false)
 const scenarios = ref<TestScenario[]>([])
+const createProjectId = ref<number | undefined>(props.projectId || props.projects?.[0]?.id)
+const projectNameMap = computed(() => new Map((props.projects || []).map(item => [item.id, item.name])))
+const scenarioCases = computed(() => apiCases.value.filter(item => item.projectId === selectedScenario.value?.projectId))
+const scenarioEnvironments = computed(() => environments.value.filter(item => item.projectId === selectedScenario.value?.projectId))
 const apiCases = ref<ApiCase[]>([])
 const environments = ref<Environment[]>([])
 
@@ -108,7 +114,7 @@ async function loadScenarios() {
   loading.value = true
 
   try {
-    const res = await getScenarios(props.projectId)
+    const res = await getScenarios()
     scenarios.value = res.data.data || []
   } catch {
     Message.error('加载场景列表失败')
@@ -121,7 +127,7 @@ async function loadScenarios() {
 
 async function loadApiCases() {
   try {
-    const res = await getApiCases(props.projectId)
+    const res = await getApiCases()
     apiCases.value = res.data.data || []
   } catch {
     Message.error('加载 API 用例失败')
@@ -132,7 +138,7 @@ async function loadApiCases() {
 
 async function loadEnvironments() {
   try {
-    const res = await getEnvironments(props.projectId)
+    const res = await getEnvironments()
     environments.value = res.data.data || []
   } catch {
     Message.error('加载测试环境失败')
@@ -143,6 +149,7 @@ async function loadEnvironments() {
 
 function openCreate() {
   editingId.value = null
+  createProjectId.value = props.projectId || props.projects?.[0]?.id
 
   form.value = {
     name: '',
@@ -168,6 +175,11 @@ function openEdit(record: TestScenario) {
 // ==================== 保存场景 ====================
 
 async function saveScenario() {
+  if (!editingId.value && !createProjectId.value) {
+    Message.warning('请选择所属项目')
+    return
+  }
+
   if (!form.value.name.trim()) {
     Message.warning('请输入场景名称')
     return
@@ -184,7 +196,7 @@ async function saveScenario() {
       Message.success('场景更新成功')
     } else {
       await createScenario({
-        projectId: props.projectId,
+        projectId: createProjectId.value!,
         ...data
       })
 
@@ -578,7 +590,7 @@ function formatTime(value: string | null | undefined) {
 // ==================== 监听项目切换 ====================
 
 watch(
-  () => props.projectId,
+  () => [props.projectId, props.projects?.length],
   async () => {
     await Promise.all([
       loadScenarios(),
@@ -622,6 +634,10 @@ watch(
           data-index="id"
           :width="100"
         />
+
+        <a-table-column title="所属项目" :width="140">
+          <template #cell="{ record }">{{ projectNameMap.get(record.projectId) || `项目 #${record.projectId}` }}</template>
+        </a-table-column>
 
         <a-table-column
           title="场景名称"
@@ -677,6 +693,11 @@ watch(
       @ok="saveScenario"
     >
       <a-form :model="form" layout="vertical">
+        <a-form-item label="所属项目" required>
+          <a-select v-model="createProjectId" :disabled="editingId !== null" placeholder="请选择所属项目">
+            <a-option v-for="project in projects || []" :key="project.id" :value="project.id">{{ project.name }}</a-option>
+          </a-select>
+        </a-form-item>
         <a-form-item label="场景名称" required>
           <a-input
             v-model="form.name"
@@ -723,7 +744,7 @@ watch(
               allow-clear
             >
               <a-option
-                v-for="item in environments"
+                v-for="item in scenarioEnvironments"
                 :key="item.id"
                 :value="item.id"
               >
@@ -757,7 +778,7 @@ watch(
             allow-clear
           >
             <a-option
-              v-for="item in apiCases"
+              v-for="item in scenarioCases"
               :key="item.id"
               :value="item.id"
             >
