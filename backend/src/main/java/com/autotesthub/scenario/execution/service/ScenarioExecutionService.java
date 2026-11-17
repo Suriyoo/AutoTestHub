@@ -298,47 +298,42 @@ public List<Map<String, Object>> getProjectExecutionReports(
         Long projectId,
         Long userId
 ) {
-    // 校验项目是否存在，以及当前用户是否为项目所有者
-    Project project = projectMapper.selectById(projectId);
-
-    if (project == null
-            || project.getOwnerId() == null
-            || !project.getOwnerId().equals(userId)) {
-        throw new RuntimeException("项目不存在");
+    List<Long> ownedProjectIds;
+    if (projectId != null) {
+        Project project = projectMapper.selectById(projectId);
+        if (project == null || project.getOwnerId() == null
+                || !project.getOwnerId().equals(userId)) {
+            throw new RuntimeException("项目不存在");
+        }
+        ownedProjectIds = List.of(projectId);
+    } else {
+        ownedProjectIds = projectMapper.selectList(
+                new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<Project>()
+                        .eq("owner_id", userId)
+        ).stream().map(Project::getId).toList();
     }
+    if (ownedProjectIds.isEmpty()) return List.of();
 
-    // 查询项目下所有场景执行记录，按执行 ID 倒序排列
-    List<ScenarioExecution> executions =
-            executionMapper.selectList(
-                    new LambdaQueryWrapper<ScenarioExecution>()
-                            .eq(ScenarioExecution::getProjectId, projectId)
-                            .orderByDesc(ScenarioExecution::getId)
-            );
-
+    List<ScenarioExecution> executions = executionMapper.selectList(
+            new LambdaQueryWrapper<ScenarioExecution>()
+                    .in(ScenarioExecution::getProjectId, ownedProjectIds)
+                    .orderByDesc(ScenarioExecution::getId)
+    );
     List<Map<String, Object>> reports = new ArrayList<>();
-
+    Map<Long, String> projectNames = new HashMap<>();
+    for (Project project : projectMapper.selectBatchIds(ownedProjectIds)) {
+        projectNames.put(project.getId(), project.getName());
+    }
     for (ScenarioExecution execution : executions) {
-        TestScenario scenario =
-                scenarioMapper.selectById(execution.getScenarioId());
-
-        TestEnvironment environment =
-                environmentMapper.selectById(execution.getEnvironmentId());
-
+        TestScenario scenario = scenarioMapper.selectById(execution.getScenarioId());
+        TestEnvironment environment = environmentMapper.selectById(execution.getEnvironmentId());
         Map<String, Object> item = new LinkedHashMap<>();
-
         item.put("execution", execution);
-        item.put(
-                "scenarioName",
-                scenario == null ? "未知场景" : scenario.getName()
-        );
-        item.put(
-                "environmentName",
-                environment == null ? "未知环境" : environment.getName()
-        );
-
+        item.put("scenarioName", scenario == null ? "未知场景" : scenario.getName());
+        item.put("environmentName", environment == null ? "未知环境" : environment.getName());
+        item.put("projectName", projectNames.getOrDefault(execution.getProjectId(), "未知项目"));
         reports.add(item);
     }
-
     return reports;
 }
 public Map<String, Object> getProjectExecutionTrends(
@@ -347,157 +342,80 @@ public Map<String, Object> getProjectExecutionTrends(
         LocalDate startDate,
         LocalDate endDate
 ) {
-    Project project = projectMapper.selectById(projectId);
-
-    if (project == null
-            || project.getOwnerId() == null
-            || !project.getOwnerId().equals(userId)) {
-        throw new RuntimeException("项目不存在");
+    List<Long> ownedProjectIds;
+    if (projectId != null) {
+        Project project = projectMapper.selectById(projectId);
+        if (project == null || project.getOwnerId() == null
+                || !project.getOwnerId().equals(userId)) {
+            throw new RuntimeException("项目不存在");
+        }
+        ownedProjectIds = List.of(projectId);
+    } else {
+        ownedProjectIds = projectMapper.selectList(
+                new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<Project>()
+                        .eq("owner_id", userId)
+        ).stream().map(Project::getId).toList();
     }
+    if (startDate == null || endDate == null) throw new RuntimeException("请选择统计日期范围");
+    if (startDate.isAfter(endDate)) throw new RuntimeException("开始日期不能晚于结束日期");
+    if (startDate.plusDays(90).isBefore(endDate)) throw new RuntimeException("统计范围不能超过90天");
 
-    if (startDate == null || endDate == null) {
-        throw new RuntimeException("请选择统计日期范围");
-    }
-
-    if (startDate.isAfter(endDate)) {
-        throw new RuntimeException("开始日期不能晚于结束日期");
-    }
-
-    if (startDate.plusDays(90).isBefore(endDate)) {
-        throw new RuntimeException("统计范围不能超过90天");
-    }
-
-    List<ScenarioExecution> executions =
-            executionMapper.selectList(
+    List<ScenarioExecution> executions = ownedProjectIds.isEmpty() ? List.of()
+            : executionMapper.selectList(
                     new LambdaQueryWrapper<ScenarioExecution>()
-                            .eq(ScenarioExecution::getProjectId, projectId)
-                            .ge(
-                                    ScenarioExecution::getStartedAt,
-                                    startDate.atStartOfDay()
-                            )
-                            .lt(
-                                    ScenarioExecution::getStartedAt,
-                                    endDate.plusDays(1).atStartOfDay()
-                            )
+                            .in(ScenarioExecution::getProjectId, ownedProjectIds)
+                            .ge(ScenarioExecution::getStartedAt, startDate.atStartOfDay())
+                            .lt(ScenarioExecution::getStartedAt, endDate.plusDays(1).atStartOfDay())
                             .orderByAsc(ScenarioExecution::getStartedAt)
             );
-
     Map<LocalDate, Map<String, Object>> dailyMap = new LinkedHashMap<>();
-
-    for (LocalDate date = startDate;
-         !date.isAfter(endDate);
-         date = date.plusDays(1)) {
-
+    for (LocalDate date = startDate; !date.isAfter(endDate); date = date.plusDays(1)) {
         Map<String, Object> item = new LinkedHashMap<>();
-
         item.put("date", date.toString());
         item.put("executionCount", 0);
         item.put("passedCount", 0);
         item.put("failedCount", 0);
         item.put("passRate", 0);
         item.put("avgDuration", 0);
-
         dailyMap.put(date, item);
     }
-
-    int totalCount = 0;
-    int passedCount = 0;
-    int failedCount = 0;
-
+    int totalCount = 0, passedCount = 0, failedCount = 0;
     Map<LocalDate, Long> durationTotal = new HashMap<>();
     Map<LocalDate, Integer> durationCount = new HashMap<>();
-
     for (ScenarioExecution execution : executions) {
-
-        if (execution.getStartedAt() == null) {
-            continue;
-        }
-
+        if (execution.getStartedAt() == null) continue;
         LocalDate date = execution.getStartedAt().toLocalDate();
-
         Map<String, Object> item = dailyMap.get(date);
-
-        if (item == null) {
-            continue;
-        }
-
+        if (item == null) continue;
         totalCount++;
-
-        int count = (int) item.get("executionCount");
-        item.put("executionCount", count + 1);
-
+        item.put("executionCount", (int) item.get("executionCount") + 1);
         if ("PASSED".equals(execution.getStatus())) {
             passedCount++;
-
-            int passed = (int) item.get("passedCount");
-            item.put("passedCount", passed + 1);
-
+            item.put("passedCount", (int) item.get("passedCount") + 1);
         } else if ("FAILED".equals(execution.getStatus())) {
             failedCount++;
-
-            int failed = (int) item.get("failedCount");
-            item.put("failedCount", failed + 1);
+            item.put("failedCount", (int) item.get("failedCount") + 1);
         }
-
-        if (execution.getDuration() != null
-                && execution.getDuration() >= 0) {
-
-            durationTotal.merge(
-                    date,
-                    execution.getDuration(),
-                    Long::sum
-            );
-
-            durationCount.merge(
-                    date,
-                    1,
-                    Integer::sum
-            );
+        if (execution.getDuration() != null && execution.getDuration() >= 0) {
+            durationTotal.merge(date, execution.getDuration(), Long::sum);
+            durationCount.merge(date, 1, Integer::sum);
         }
     }
-
-    for (Map.Entry<LocalDate, Map<String, Object>> entry
-            : dailyMap.entrySet()) {
-
+    for (Map.Entry<LocalDate, Map<String, Object>> entry : dailyMap.entrySet()) {
         Map<String, Object> item = entry.getValue();
-
-        int dailyTotal = (int) item.get("executionCount");
-        int dailyPassed = (int) item.get("passedCount");
-
-        item.put(
-                "passRate",
-                dailyTotal == 0
-                        ? 0
-                        : Math.round(dailyPassed * 100.0 / dailyTotal)
-        );
-
-        int count = durationCount.getOrDefault(entry.getKey(), 0);
-
-        item.put(
-                "avgDuration",
-                count == 0
-                        ? 0
-                        : durationTotal.get(entry.getKey()) / count
-        );
+        int count = (int) item.get("executionCount");
+        item.put("passRate", count == 0 ? 0 : Math.round((int) item.get("passedCount") * 100.0 / count));
+        int durationItems = durationCount.getOrDefault(entry.getKey(), 0);
+        item.put("avgDuration", durationItems == 0 ? 0 : durationTotal.get(entry.getKey()) / durationItems);
     }
-
     Map<String, Object> result = new LinkedHashMap<>();
-
     result.put("totalCount", totalCount);
     result.put("passedCount", passedCount);
     result.put("failedCount", failedCount);
-
-    result.put(
-            "overallPassRate",
-            totalCount == 0
-                    ? 0
-                    : Math.round(passedCount * 100.0 / totalCount)
-    );
-
+    result.put("overallPassRate", totalCount == 0 ? 0 : Math.round(passedCount * 100.0 / totalCount));
     result.put("startDate", startDate.toString());
     result.put("endDate", endDate.toString());
     result.put("trends", new ArrayList<>(dailyMap.values()));
-
     return result;
 }
 }
