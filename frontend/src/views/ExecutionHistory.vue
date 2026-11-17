@@ -216,7 +216,7 @@ onMounted(async () => {
       :columns="columns"
       :data="records"
       :loading="loading"
-      :pagination="{ pageSize: 10, show-total: true }"
+      :pagination="{ pageSize: 10 }"
       row-key="id"
       stripe
       :scroll="{ x: 850 }"
@@ -336,21 +336,26 @@ onMounted(async () => {
 .filter-bar {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 10px;
   margin-bottom: 18px;
+  overflow-x: auto;
+  padding-bottom: 2px;
 }
 
 .filter-project {
-  width: 190px;
+  width: 180px;
+  flex: 0 0 180px;
 }
 
 .filter-result {
   width: 160px;
+  flex: 0 0 160px;
 }
 
 .filter-date {
   width: 150px;
+  flex: 0 0 150px;
 }
 
 .date-separator {
@@ -385,10 +390,16 @@ onMounted(async () => {
     align-items: flex-start;
   }
 
+  .filter-bar {
+    flex-wrap: wrap;
+    overflow-x: visible;
+  }
+
   .filter-project,
   .filter-result,
   .filter-date {
     width: 100%;
+    flex: 1 1 100%;
   }
 }
 </style>
