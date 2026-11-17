@@ -1,6 +1,6 @@
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import axios from 'axios'
 import {
@@ -11,13 +11,17 @@ import {
   type Environment,
   type EnvironmentRequest
 } from '../api/environment'
+import type { Project } from '../api/project'
 
 const props = defineProps<{
-  projectId: number
+  projectId?: number
+  projects?: Project[]
 }>()
 
 // 环境列表
 const environments = ref<Environment[]>([])
+const selectedProjectId = ref<number | undefined>(props.projectId || props.projects?.[0]?.id)
+const projectNameMap = computed(() => new Map((props.projects || []).map(item => [item.id, item.name])))
 const loading = ref(false)
 const saving = ref(false)
 
@@ -43,15 +47,10 @@ function getErrorMessage(error: unknown, fallback: string) {
 
 // 加载环境列表
 async function loadEnvironments() {
-  if (!props.projectId) {
-    environments.value = []
-    return
-  }
-
   loading.value = true
 
   try {
-    const response = await getEnvironments(props.projectId)
+    const response = await getEnvironments()
     environments.value = response.data.data || []
   } catch (error) {
     Message.error(getErrorMessage(error, '环境列表加载失败'))
@@ -70,6 +69,7 @@ function resetForm() {
 // 打开新增弹窗
 function openCreateModal() {
   editingId.value = null
+  selectedProjectId.value = props.projectId || props.projects?.[0]?.id
   resetForm()
   modalVisible.value = true
 }
@@ -77,6 +77,7 @@ function openCreateModal() {
 // 打开编辑弹窗
 function openEditModal(item: Environment) {
   editingId.value = item.id
+  selectedProjectId.value = item.projectId
 
   form.value.name = item.name
   form.value.baseUrl = item.baseUrl
@@ -140,8 +141,13 @@ async function saveEnvironment() {
     return
   }
 
+  if (!selectedProjectId.value) {
+    Message.warning('请先选择所属项目')
+    return
+  }
+
   const data: EnvironmentRequest = {
-    projectId: props.projectId,
+    projectId: selectedProjectId.value,
     name,
     baseUrl,
     variablesJson: variablesJson || null
@@ -180,7 +186,7 @@ async function removeEnvironment(id: number) {
 
 // 项目切换时重新加载环境
 watch(
-  () => props.projectId,
+  () => [props.projectId, props.projects?.length],
   () => {
     loadEnvironments()
   },
@@ -232,6 +238,10 @@ watch(
           data-index="id"
           :width="90"
         />
+
+        <a-table-column title="所属项目" :width="140">
+          <template #cell="{ record }">{{ projectNameMap.get(record.projectId) || `项目 #${record.projectId}` }}</template>
+        </a-table-column>
 
         <a-table-column
           title="环境名称"
@@ -315,6 +325,11 @@ watch(
       @ok="saveEnvironment"
     >
       <a-form :model="form" layout="vertical">
+        <a-form-item label="所属项目" required>
+          <a-select v-model="selectedProjectId" :disabled="editingId !== null" placeholder="请选择所属项目">
+            <a-option v-for="project in projects || []" :key="project.id" :value="project.id">{{ project.name }}</a-option>
+          </a-select>
+        </a-form-item>
         <a-form-item label="环境名称" required>
           <a-input
             v-model="form.name"
