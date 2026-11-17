@@ -1,86 +1,136 @@
-
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
+import { Message } from '@arco-design/web-vue'
 import {
   getExecutionRecords,
   getExecutionRecordDetail,
-  type ApiExecutionRecord
+  type ApiExecutionRecord,
+  type ExecutionRecordFilters
 } from '../api/executionRecord'
+import { getProjects, type Project } from '../api/project'
 
-const props = defineProps<{
-  projectId: number
-  caseId?: number
-}>()
+interface DisplayRecord extends ApiExecutionRecord {
+  projectName: string
+}
 
 const loading = ref(false)
 const detailLoading = ref(false)
-
-const records = ref<ApiExecutionRecord[]>([])
+const records = ref<DisplayRecord[]>([])
+const projects = ref<Project[]>([])
 const detailVisible = ref(false)
 const currentRecord = ref<ApiExecutionRecord | null>(null)
 
-// 表格列配置
+const filters = reactive<{
+  projectId?: number
+  result?: ExecutionRecordFilters['result']
+  startDate?: string
+  endDate?: string
+}>({
+  projectId: undefined,
+  result: undefined,
+  startDate: undefined,
+  endDate: undefined
+})
+
+const projectOptions = computed(() =>
+  projects.value.map(project => ({
+    label: project.name,
+    value: project.id
+  }))
+)
+
 const columns = [
-  { title: '用例名称', dataIndex: 'caseName' },
-  { title: '请求方法', dataIndex: 'method' },
-  { title: '执行环境', dataIndex: 'environmentName' },
-  { title: '预期状态码', dataIndex: 'expectedStatus' },
-  { title: '实际状态码', dataIndex: 'actualStatus' },
-  { title: '耗时(ms)', dataIndex: 'duration' },
-  { title: '执行结果', slotName: 'result' },
-  { title: '执行时间', dataIndex: 'executedAt' },
-  { title: '操作', slotName: 'action' }
+  { title: '所属项目', dataIndex: 'projectName', ellipsis: true, tooltip: true },
+  { title: '用例名称', dataIndex: 'caseName', ellipsis: true, tooltip: true },
+  { title: '请求方法', dataIndex: 'method', width: 110 },
+  { title: '执行结果', slotName: 'result', width: 120 },
+  { title: '耗时(ms)', dataIndex: 'duration', width: 120 },
+  { title: '操作', slotName: 'action', width: 110 }
 ]
 
-// 加载执行历史
+async function loadProjects() {
+  try {
+    const response = await getProjects()
+    projects.value = response.data.data
+  } catch (error) {
+    console.error('加载项目列表失败', error)
+    Message.error('项目列表加载失败')
+  }
+}
+
 async function loadRecords() {
-  if (!props.projectId) {
-    records.value = []
+  if (
+    filters.startDate &&
+    filters.endDate &&
+    filters.startDate > filters.endDate
+  ) {
+    Message.warning('开始日期不能晚于结束日期')
     return
   }
 
   loading.value = true
 
   try {
-    // API 封装函数已经返回数组，不需要再次读取 data.data
-    records.value = await getExecutionRecords(
-      props.projectId,
-      props.caseId
+    const query: ExecutionRecordFilters = {
+      projectId: filters.projectId,
+      result: filters.result,
+      startDate: filters.startDate,
+      endDate: filters.endDate
+    }
+
+    const result = await getExecutionRecords(query)
+    const projectNameMap = new Map(
+      projects.value.map(project => [project.id, project.name])
     )
+
+    records.value = result.map(record => ({
+      ...record,
+      projectName: projectNameMap.get(record.projectId) || `项目 #${record.projectId}`
+    }))
   } catch (error) {
     console.error('查询执行历史失败', error)
+    Message.error('查询执行历史失败')
     records.value = []
   } finally {
     loading.value = false
   }
 }
 
-// 查看执行详情
+function resetFilters() {
+  filters.projectId = undefined
+  filters.result = undefined
+  filters.startDate = undefined
+  filters.endDate = undefined
+  loadRecords()
+}
+
 async function showDetail(id: number) {
   detailLoading.value = true
   currentRecord.value = null
 
   try {
-    // API 封装函数已经返回单条记录
     currentRecord.value = await getExecutionRecordDetail(id)
     detailVisible.value = true
   } catch (error) {
     console.error('查询执行详情失败', error)
+    Message.error('查询执行详情失败')
   } finally {
     detailLoading.value = false
   }
 }
 
-// projectId 或 caseId 变化时重新查询
-watch(
-  () => [props.projectId, props.caseId],
-  () => {
-    loadRecords()
-  },
-  { immediate: true }
-)
+function getResultLabel(record: ApiExecutionRecord) {
+  if (record.success === 1 && record.passed === 1) return '通过'
+  if (record.success === 1) return '断言失败'
+  return '请求失败'
+}
 
-// 格式化 JSON
+function getResultColor(record: ApiExecutionRecord) {
+  if (record.success === 1 && record.passed === 1) return 'green'
+  if (record.success === 1) return 'orange'
+  return 'red'
+}
+
 function formatJson(value: string | null) {
   if (!value) return '无'
 
@@ -91,12 +141,15 @@ function formatJson(value: string | null) {
   }
 }
 
-// 格式化执行时间
 function formatDateTime(value: string) {
   if (!value) return '-'
-
   return value.replace('T', ' ')
 }
+
+onMounted(async () => {
+  await loadProjects()
+  await loadRecords()
+})
 </script>
 
 <template>
@@ -104,14 +157,10 @@ function formatDateTime(value: string) {
     <div class="page-header">
       <div>
         <h2>执行历史</h2>
-        <p>查看 API 用例的执行结果和请求响应详情</p>
+        <p>统一查看所有项目的 API 用例执行记录</p>
       </div>
 
-      <a-button
-        type="primary"
-        :loading="loading"
-        @click="loadRecords"
-      >
+      <a-button type="primary" :loading="loading" @click="loadRecords">
         <template #icon>
           <icon-refresh />
         </template>
@@ -119,32 +168,62 @@ function formatDateTime(value: string) {
       </a-button>
     </div>
 
+    <div class="filter-bar">
+      <a-select
+        v-model="filters.projectId"
+        :options="projectOptions"
+        allow-clear
+        placeholder="全部项目"
+        class="filter-project"
+      />
+
+      <a-select
+        v-model="filters.result"
+        allow-clear
+        placeholder="全部执行结果"
+        class="filter-result"
+      >
+        <a-option value="PASSED">通过</a-option>
+        <a-option value="ASSERTION_FAILED">断言失败</a-option>
+        <a-option value="REQUEST_FAILED">请求失败</a-option>
+      </a-select>
+
+      <a-date-picker
+        v-model="filters.startDate"
+        value-format="YYYY-MM-DD"
+        placeholder="开始日期"
+        class="filter-date"
+      />
+
+      <span class="date-separator">至</span>
+
+      <a-date-picker
+        v-model="filters.endDate"
+        value-format="YYYY-MM-DD"
+        placeholder="结束日期"
+        class="filter-date"
+      />
+
+      <a-button type="primary" :loading="loading" @click="loadRecords">
+        查询
+      </a-button>
+      <a-button @click="resetFilters">
+        重置
+      </a-button>
+    </div>
+
     <a-table
       :columns="columns"
       :data="records"
       :loading="loading"
-      :pagination="{ pageSize: 10 }"
+      :pagination="{ pageSize: 10, show-total: true }"
       row-key="id"
       stripe
-      :scroll="{ x: 1100 }"
+      :scroll="{ x: 850 }"
     >
       <template #result="{ record }">
-        <a-tag
-          v-if="record.success === 1 && record.passed === 1"
-          color="green"
-        >
-          通过
-        </a-tag>
-
-        <a-tag
-          v-else-if="record.success === 1"
-          color="orange"
-        >
-          断言失败
-        </a-tag>
-
-        <a-tag v-else color="red">
-          请求失败
+        <a-tag :color="getResultColor(record)">
+          {{ getResultLabel(record) }}
         </a-tag>
       </template>
 
@@ -164,7 +243,6 @@ function formatDateTime(value: string) {
       </template>
     </a-table>
 
-    <!-- 执行详情抽屉 -->
     <a-drawer
       v-model:visible="detailVisible"
       title="执行记录详情"
@@ -177,52 +255,30 @@ function formatDateTime(value: string) {
             <a-descriptions-item label="记录ID">
               {{ currentRecord.id }}
             </a-descriptions-item>
-
             <a-descriptions-item label="用例名称">
               {{ currentRecord.caseName }}
             </a-descriptions-item>
-
             <a-descriptions-item label="请求方法">
               {{ currentRecord.method }}
             </a-descriptions-item>
-
             <a-descriptions-item label="执行环境">
               {{ currentRecord.environmentName || '未指定' }}
             </a-descriptions-item>
-
             <a-descriptions-item label="预期状态码">
               {{ currentRecord.expectedStatus ?? '-' }}
             </a-descriptions-item>
-
             <a-descriptions-item label="实际状态码">
               {{ currentRecord.actualStatus ?? '-' }}
             </a-descriptions-item>
-
             <a-descriptions-item label="耗时">
               {{ currentRecord.duration ?? '-' }} ms
             </a-descriptions-item>
-
             <a-descriptions-item label="执行时间">
               {{ formatDateTime(currentRecord.executedAt) }}
             </a-descriptions-item>
-
             <a-descriptions-item label="执行结果">
-              <a-tag
-                v-if="currentRecord.success === 1 && currentRecord.passed === 1"
-                color="green"
-              >
-                通过
-              </a-tag>
-
-              <a-tag
-                v-else-if="currentRecord.success === 1"
-                color="orange"
-              >
-                断言失败
-              </a-tag>
-
-              <a-tag v-else color="red">
-                请求失败
+              <a-tag :color="getResultColor(currentRecord)">
+                {{ getResultLabel(currentRecord) }}
               </a-tag>
             </a-descriptions-item>
           </a-descriptions>
@@ -244,9 +300,7 @@ function formatDateTime(value: string) {
 
           <div v-if="currentRecord.errorMessage">
             <h3>错误信息</h3>
-            <pre class="error-text">
-{{ currentRecord.errorMessage }}
-            </pre>
+            <pre class="error-text">{{ currentRecord.errorMessage }}</pre>
           </div>
         </div>
       </a-spin>
@@ -257,12 +311,15 @@ function formatDateTime(value: string) {
 <style scoped>
 .execution-history {
   padding: 20px;
+  background: #fff;
+  border-radius: 8px;
 }
 
 .page-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 16px;
   margin-bottom: 20px;
 }
 
@@ -274,6 +331,30 @@ function formatDateTime(value: string) {
   margin: 0;
   color: var(--color-text-3);
   font-size: 13px;
+}
+
+.filter-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.filter-project {
+  width: 190px;
+}
+
+.filter-result {
+  width: 160px;
+}
+
+.filter-date {
+  width: 150px;
+}
+
+.date-separator {
+  color: var(--color-text-3);
 }
 
 .detail-content h3 {
@@ -293,5 +374,21 @@ function formatDateTime(value: string) {
 
 .error-text {
   color: rgb(var(--danger-6));
+}
+
+@media (max-width: 768px) {
+  .execution-history {
+    padding: 12px;
+  }
+
+  .page-header {
+    align-items: flex-start;
+  }
+
+  .filter-project,
+  .filter-result,
+  .filter-date {
+    width: 100%;
+  }
 }
 </style>
