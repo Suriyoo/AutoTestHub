@@ -50,7 +50,7 @@ public class ApiCaseController {
     // 查询项目下的用例列表
     @GetMapping
     public ApiResponse<List<ApiCase>> list(
-            @RequestParam Long projectId,
+            @RequestParam(required = false) Long projectId,
             HttpServletRequest request) {
 
         return ApiResponse.ok(
