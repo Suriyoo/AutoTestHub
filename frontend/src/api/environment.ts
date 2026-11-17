@@ -28,9 +28,9 @@ export interface ApiResponse<T> {
 }
 
 // 查询项目下的环境列表
-export function getEnvironments(projectId: number) {
+export function getEnvironments(projectId?: number) {
   return http.get<ApiResponse<Environment[]>>('/environments', {
-    params: { projectId }
+    params: projectId ? { projectId } : {}
   })
 }
 
