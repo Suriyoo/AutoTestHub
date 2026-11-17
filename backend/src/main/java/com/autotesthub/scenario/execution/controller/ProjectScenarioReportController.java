@@ -34,9 +34,9 @@ public class ProjectScenarioReportController {
     /**
      * 查询项目下所有场景的执行报告
      */
-    @GetMapping("/{projectId}/scenario-executions")
+    @GetMapping({"/scenario-executions", "/{projectId}/scenario-executions"})
     public ApiResponse<List<Map<String, Object>>> getProjectExecutionReports(
-            @PathVariable Long projectId,
+            @PathVariable(required = false) Long projectId,
             HttpServletRequest request
     ) {
         return ApiResponse.ok(
