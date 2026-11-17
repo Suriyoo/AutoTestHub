@@ -62,16 +62,17 @@ const router = createRouter({
       }
     },
     {
-      path: '/workspace/:projectId/history',
+      path: '/history',
       name: 'history',
       component: () => import('../views/ExecutionHistory.vue'),
-      props: route => ({
-        projectId: Number(route.params.projectId)
-      }),
       meta: {
         title: '执行历史',
         menu: 'history'
       }
+    },
+    {
+      path: '/workspace/:projectId/history',
+      redirect: '/history'
     },
     {
       path: '/workspace/:projectId/reports',
