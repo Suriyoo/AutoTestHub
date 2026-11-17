@@ -1,8 +1,9 @@
 
 <script setup lang="ts">
-import { ref, reactive, watch } from 'vue'
+import { ref, reactive, watch, computed } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import axios from 'axios'
+import type { Project } from '../api/project'
 import {
   getApiCases,
   createApiCase,
@@ -43,10 +44,13 @@ interface ExecutionResult {
 }
 
 const props = defineProps<{
-  projectId: number
+  projectId?: number
+  projects?: Project[]
 }>()
 
 const cases = ref<ApiCase[]>([])
+const selectedProjectId = ref<number | undefined>(props.projectId || props.projects?.[0]?.id)
+const projectNameMap = computed(() => new Map((props.projects || []).map(item => [item.id, item.name])))
 const environments = ref<Environment[]>([])
 
 const loading = ref(false)
@@ -81,15 +85,10 @@ function getErrorMessage(error: unknown, fallback: string) {
 
 // 加载 API 用例
 async function loadCases() {
-  if (!props.projectId) {
-    cases.value = []
-    return
-  }
-
   loading.value = true
 
   try {
-    const response = await getApiCases(props.projectId)
+    const response = await getApiCases()
     cases.value = response.data.data || []
   } catch (error) {
     Message.error(getErrorMessage(error, 'API 用例加载失败'))
@@ -100,16 +99,11 @@ async function loadCases() {
 
 // 加载测试环境
 async function loadEnvironments() {
-  if (!props.projectId) {
-    environments.value = []
-    return
-  }
-
   try {
     const response = await axios.get<ApiResponse<Environment[]>>(
       '/api/environments',
       {
-        params: { projectId: props.projectId },
+        params: {},
         headers: {
           Authorization: `Bearer ${localStorage.getItem('autotest_token') || ''}`
         }
@@ -157,6 +151,7 @@ function resetForm() {
 // 新增用例
 function openCreateModal() {
   editingId.value = null
+  selectedProjectId.value = props.projectId || props.projects?.[0]?.id
   resetForm()
   modalVisible.value = true
 }
@@ -164,6 +159,7 @@ function openCreateModal() {
 // 编辑用例
 function openEditModal(item: ApiCase) {
   editingId.value = item.id
+  selectedProjectId.value = item.projectId
 
   form.name = item.name
   form.method = item.method
@@ -227,8 +223,13 @@ async function saveCase() {
     return
   }
 
+  if (!selectedProjectId.value) {
+    Message.warning('请先选择所属项目')
+    return
+  }
+
   const data: ApiCaseRequest = {
-    projectId: props.projectId,
+    projectId: selectedProjectId.value,
     name: form.name.trim(),
     method: form.method,
     url: form.url.trim(),
@@ -304,7 +305,7 @@ async function runCase(item: ApiCase) {
 
 // 监听项目变化
 watch(
-  () => props.projectId,
+  () => [props.projectId, props.projects?.length],
   () => {
     selectedEnvironmentId.value = undefined
     loadPage()
@@ -376,6 +377,10 @@ watch(
           data-index="id"
           :width="70"
         />
+
+        <a-table-column title="所属项目" :width="140">
+          <template #cell="{ record }">{{ projectNameMap.get(record.projectId) || `项目 #${record.projectId}` }}</template>
+        </a-table-column>
 
         <a-table-column
           title="用例名称"
@@ -479,6 +484,11 @@ watch(
       @ok="saveCase"
     >
       <a-form :model="form" layout="vertical">
+        <a-form-item label="所属项目" required>
+          <a-select v-model="selectedProjectId" :disabled="editingId !== null" placeholder="请选择所属项目">
+            <a-option v-for="project in projects || []" :key="project.id" :value="project.id">{{ project.name }}</a-option>
+          </a-select>
+        </a-form-item>
         <a-form-item label="用例名称" required>
           <a-input
             v-model="form.name"
