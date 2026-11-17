@@ -42,7 +42,7 @@ public class EnvironmentController {
 
     @GetMapping
     public ApiResponse<List<TestEnvironment>> list(
-            @RequestParam Long projectId,
+            @RequestParam(required = false) Long projectId,
             HttpServletRequest request) {
 
         return ApiResponse.ok(
