@@ -80,14 +80,21 @@ public class TestScenarioService {
 
     // 查询项目下的场景列表
     public List<TestScenario> list(Long projectId, Long userId) {
-
-        checkProjectOwner(projectId, userId);
-
-        return scenarioMapper.selectList(
-                new LambdaQueryWrapper<TestScenario>()
-                        .eq(TestScenario::getProjectId, projectId)
-                        .orderByDesc(TestScenario::getId)
-        );
+        LambdaQueryWrapper<TestScenario> wrapper = new LambdaQueryWrapper<>();
+        if (projectId != null) {
+            checkProjectOwner(projectId, userId);
+            wrapper.eq(TestScenario::getProjectId, projectId);
+        } else {
+            List<Long> ownedProjectIds = projectMapper.selectList(
+                    new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<Project>()
+                            .eq("owner_id", userId)
+            ).stream().map(Project::getId).toList();
+            if (ownedProjectIds.isEmpty()) {
+                return List.of();
+            }
+            wrapper.in(TestScenario::getProjectId, ownedProjectIds);
+        }
+        return scenarioMapper.selectList(wrapper.orderByDesc(TestScenario::getId));
     }
 
     // 查询场景详情
