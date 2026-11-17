@@ -272,8 +272,13 @@ async function removeCase(id: number) {
 
 // 执行用例
 async function runCase(item: ApiCase) {
-  if (!selectedEnvironmentId.value) {
-    Message.warning('请先选择测试环境')
+  const matchingEnvironments = environments.value.filter(env => env.projectId === item.projectId)
+  const environmentId = matchingEnvironments.some(env => env.id === selectedEnvironmentId.value)
+    ? selectedEnvironmentId.value
+    : matchingEnvironments[0]?.id
+
+  if (!environmentId) {
+    Message.warning('该用例所属项目尚未配置测试环境')
     return
   }
 
@@ -283,7 +288,7 @@ async function runCase(item: ApiCase) {
   try {
     const response = await executeApiCase(
       item.id,
-      selectedEnvironmentId.value
+      environmentId
     )
 
     executionResult.value = response.data.data as ExecutionResult
