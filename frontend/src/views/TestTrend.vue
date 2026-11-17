@@ -8,7 +8,7 @@ import {
 } from '../api/scenario'
 
 const props = defineProps<{
-  projectId: number
+  projectId?: number
 }>()
 
 type DateRangeType = '7' | '30' | 'custom'
@@ -54,8 +54,6 @@ function changeRange(value: DateRangeType) {
 }
 
 async function loadTrends() {
-  if (!props.projectId) return
-
   if (!startDate.value || !endDate.value) {
     Message.warning('请选择统计日期范围')
     return
@@ -151,7 +149,7 @@ watch(
     <div class="page-header">
       <div>
         <h2>测试趋势分析</h2>
-        <p>通过历史执行数据分析项目自动化测试质量变化</p>
+        <p>通过历史执行数据分析所有项目的自动化测试质量变化</p>
       </div>
 
       <a-button
