@@ -32,9 +32,9 @@ public class ProjectScenarioTrendController {
         return number.longValue();
     }
 
-    @GetMapping("/{projectId}/scenario-execution-trends")
+    @GetMapping({"/scenario-execution-trends", "/{projectId}/scenario-execution-trends"})
     public ApiResponse<Map<String, Object>> getProjectExecutionTrends(
-            @PathVariable Long projectId,
+            @PathVariable(required = false) Long projectId,
 
             @RequestParam
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
