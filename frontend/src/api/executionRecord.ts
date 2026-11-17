@@ -1,4 +1,3 @@
-
 import { http } from './http'
 
 export interface ApiExecutionRecord {
@@ -30,6 +29,14 @@ export interface ApiExecutionRecord {
   executedAt: string
 }
 
+export interface ExecutionRecordFilters {
+  projectId?: number
+  caseId?: number
+  result?: 'PASSED' | 'ASSERTION_FAILED' | 'REQUEST_FAILED'
+  startDate?: string
+  endDate?: string
+}
+
 interface ApiResponse<T> {
   code: number
   message: string
@@ -37,19 +44,16 @@ interface ApiResponse<T> {
 }
 
 /**
- * 查询项目执行历史
+ * 查询当前用户的 API 执行历史。
+ * 不传 projectId 时查询当前用户全部项目。
  */
 export async function getExecutionRecords(
-  projectId: number,
-  caseId?: number
+  filters: ExecutionRecordFilters = {}
 ): Promise<ApiExecutionRecord[]> {
   const response = await http.get<ApiResponse<ApiExecutionRecord[]>>(
     '/execution-records',
     {
-      params: {
-        projectId,
-        caseId
-      }
+      params: filters
     }
   )
 
