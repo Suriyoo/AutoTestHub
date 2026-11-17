@@ -14,7 +14,7 @@ import {
 } from '../api/scenario'
 
 const props = defineProps<{
-  projectId: number
+  projectId?: number
 }>()
 
 type StatusFilter = 'ALL' | 'PASSED' | 'FAILED'
@@ -224,7 +224,7 @@ watch(
     <div class="report-toolbar">
       <div>
         <h2>测试报告</h2>
-        <p>查看当前项目下所有测试场景的执行报告</p>
+        <p>统一查看所有项目下测试场景的执行报告</p>
       </div>
 
       <a-button
@@ -339,6 +339,10 @@ watch(
             <template #cell="{ record }">
               <span class="id-text">#{{ record.execution.id }}</span>
             </template>
+          </a-table-column>
+
+          <a-table-column title="所属项目" :width="130" ellipsis tooltip>
+            <template #cell="{ record }">{{ record.projectName || `项目 #${record.execution.projectId}` }}</template>
           </a-table-column>
 
           <a-table-column
