@@ -78,12 +78,20 @@ public class EnvironmentService {
     }
 
     public List<TestEnvironment> list(Long projectId, Long userId) {
-        checkProjectOwner(projectId, userId);
-
         QueryWrapper<TestEnvironment> wrapper = new QueryWrapper<>();
-        wrapper.eq("project_id", projectId);
+        if (projectId != null) {
+            checkProjectOwner(projectId, userId);
+            wrapper.eq("project_id", projectId);
+        } else {
+            List<Long> ownedProjectIds = projectMapper.selectList(
+                    new QueryWrapper<Project>().eq("owner_id", userId)
+            ).stream().map(Project::getId).toList();
+            if (ownedProjectIds.isEmpty()) {
+                return List.of();
+            }
+            wrapper.in("project_id", ownedProjectIds);
+        }
         wrapper.orderByDesc("updated_at");
-
         return environmentMapper.selectList(wrapper);
     }
 
